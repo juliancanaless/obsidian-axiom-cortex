@@ -36,8 +36,8 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
     guideEl.createEl('strong', { text: '📋 Setup guide' });
     const guideList = guideEl.createEl('ul');
     guideList.createEl('li', { text: 'Set the server path and data directory below, then enable auto-start.' });
-    guideList.createEl('li', { text: 'If you\'re logged in via OAuth (e.g., Google), the graph will automatically use your login for both LLM and embeddings — no API key needed.' });
-    guideList.createEl('li', { text: 'If you prefer an API key, set one in Providers above. You can mix: e.g., OAuth for chat + API key for the graph.' });
+    guideList.createEl('li', { text: 'The graph server requires a Gemini API key (free from Google AI Studio) for both LLM reasoning and embeddings. Set it in Providers → gemini above.' });
+    guideList.createEl('li', { text: 'Chat uses your OAuth login (e.g., Google Antigravity) separately — the graph server and chat use different auth paths.' });
 
     const warningP = guideEl.createEl('p');
     warningP.createEl('strong', { text: '⚠ Embedding lock-in: ' });

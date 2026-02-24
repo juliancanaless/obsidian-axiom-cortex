@@ -578,6 +578,16 @@ onunload() {
       issues.push(`• No API key for "${llmProvider.id}" (used by graph LLM) and no OAuth login configured`);
     }
 
+    // When using Google OAuth for LightRAG, a Gemini API key is still required
+    // because the LightRAG server calls Gemini directly (not through Cloud Code Assist)
+    // and the Gemini SDK doesn't accept OAuth tokens as api_key.
+    if (hasOAuth && this.settings.lightRagOAuthProvider?.startsWith('google')) {
+      const geminiProvider = this.settings.providers.find(p => p.type === 'gemini' && p.apiKey);
+      if (!geminiProvider) {
+        issues.push('• Google OAuth is set as graph auth source, but a Gemini API key is still needed in Providers for the graph server (OAuth tokens don\'t work as Gemini API keys)');
+      }
+    }
+
     // Check embedding access
     const embedId = this.settings.lightRagEmbeddingModelId || this.settings.embeddingModelId;
     const embedModel = this.settings.embeddingModels.find(m => m.id === embedId);
@@ -777,27 +787,41 @@ onunload() {
                     envContent += `OPENAI_API_KEY=${creds.access}\n`;
                     envContent += `LLM_BINDING=openai\n`;
                 } else if (providerId === 'google-antigravity' || providerId === 'google-gemini-cli') {
-                    // Google OAuth → Gemini binding (the access token works as bearer token)
-                    envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
+                    // Google OAuth → Gemini binding
+                    // IMPORTANT: The Gemini Python SDK does NOT accept OAuth tokens (ya29.xxx)
+                    // as api_key — it only works with Google API keys (AIzaSy...).
+                    // OAuth tokens are bearer credentials, but the SDK sends api_key as ?key= param.
+                    // So for LightRAG we must use a real Gemini API key if available.
                     envContent += `LLM_BINDING=gemini\n`;
-                    // Only write GEMINI_API_KEY if embedding isn't using its own Gemini key
-                    // (avoids overwriting a real API key with an OAuth token)
-                    if (!embedProvider?.apiKey || embedProvider.type !== 'gemini') {
-                        envContent += `GEMINI_API_KEY=${creds.access}\n`;
+
+                    // Use the real Gemini API key for LLM if available (from any configured gemini provider)
+                    const geminiProvider = this.settings.providers.find(p => p.type === 'gemini' && p.apiKey);
+                    if (geminiProvider?.apiKey) {
+                        envContent += `LLM_BINDING_API_KEY=${geminiProvider.apiKey}\n`;
+                        envContent += `GEMINI_API_KEY=${geminiProvider.apiKey}\n`;
+                    } else {
+                        // No Gemini API key available — try the OAuth token as fallback
+                        // (will fail with standard Gemini SDK, but might work with Vertex AI mode)
+                        envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
                     }
+
                     // Override LLM model to a Gemini model if current model isn't Gemini-compatible
                     if (llmModelObj && !llmModelObj.model.startsWith('gemini')) {
                         envContent += `LLM_MODEL=gemini-2.5-flash\n`;
                     }
                     if (creds.projectId) envContent += `GOOGLE_CLOUD_PROJECT=${creds.projectId}\n`;
-                    // If the embedding provider has no API key, use the Gemini OAuth
-                    // token for embeddings too (Gemini supports embeddings)
+
+                    // If the embedding provider has no API key, use the Gemini API key for embeddings too
                     if (!embedProvider?.apiKey) {
                         envContent += `EMBEDDING_BINDING=gemini\n`;
                         envContent += `EMBEDDING_MODEL=gemini-embedding-001\n`;
                         envContent += `EMBEDDING_DIM=768\n`;
-                        envContent += `EMBEDDING_BINDING_API_KEY=${creds.access}\n`;
                         envContent += `EMBEDDING_BINDING_HOST=https://generativelanguage.googleapis.com\n`;
+                        if (geminiProvider?.apiKey) {
+                            envContent += `EMBEDDING_BINDING_API_KEY=${geminiProvider.apiKey}\n`;
+                        } else {
+                            envContent += `EMBEDDING_BINDING_API_KEY=${creds.access}\n`;
+                        }
                     }
                 } else if (providerId === 'github-copilot') {
                     envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
