@@ -1,6 +1,6 @@
 {
   "name": "axiom-cortex",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "description": "OAuth-powered Graph RAG for Obsidian with knowledge synthesis and Antigravity bridge.",
   "main": "main.js",
   "scripts": {

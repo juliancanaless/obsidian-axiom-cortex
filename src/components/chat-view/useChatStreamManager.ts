@@ -13,8 +13,9 @@ import {
   LLMModelNotFoundException,
 } from '../../core/llm/exception'
 import { getChatModelClient } from '../../core/llm/manager'
-import { ChatMessage } from '../../types/chat'
+import { ChatMessage, ChatUserMessage } from '../../types/chat'
 import { PromptGenerator } from '../../utils/chat/promptGenerator'
+import { readTFileContent } from '../../utils/obsidian'
 import { ResponseGenerator } from '../../utils/chat/responseGenerator'
 import { ErrorModal } from '../modals/ErrorModal'
 
@@ -142,6 +143,24 @@ export function useChatStreamManager({
 
           if (!promptText) {
             throw new Error('No message content to send.')
+          }
+
+          // Include current file content if the eye icon is enabled,
+          // matching what generateRequestMessages() does for API-key models.
+          if (settings.chatOptions.includeCurrentFileContent) {
+            const lastUserMessage = chatMessages
+              .filter((m): m is ChatUserMessage => m.role === 'user')
+              .at(-1)
+            const currentFileMentionable = lastUserMessage?.mentionables.find(
+              (m) => m.type === 'current-file',
+            )
+            if (currentFileMentionable?.type === 'current-file' && currentFileMentionable.file) {
+              const fileContent = await readTFileContent(
+                currentFileMentionable.file,
+                app.vault,
+              )
+              promptText = `# Current File\nHere is the file I'm looking at.\n\`\`\`${currentFileMentionable.file.path}\n${fileContent}\n\`\`\`\n\n${promptText}`
+            }
           }
 
           const responseText = await plugin.simpleLLMCall(promptText)
