@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef } from 'react'
 
 import { useApp } from '../../contexts/app-context'
 import { useMcp } from '../../contexts/mcp-context'
+import { usePlugin } from '../../contexts/plugin-context'
 import { useSettings } from '../../contexts/settings-context'
 import {
   LLMAPIKeyInvalidException,
@@ -38,6 +39,7 @@ export function useChatStreamManager({
   promptGenerator,
 }: UseChatStreamManagerParams): UseChatStreamManager {
   const app = useApp()
+  const plugin = usePlugin()
   const { settings, setSettings } = useSettings()
   const { getMcpManager } = useMcp()
 
@@ -140,14 +142,6 @@ export function useChatStreamManager({
 
           if (!promptText) {
             throw new Error('No message content to send.')
-          }
-
-          // Get the plugin instance to access simpleLLMCall
-          // We access it through the app's plugin registry
-          const plugin = (app as any).plugins?.plugins?.['obsidian-neural-composer'] ||
-                         (app as any).plugins?.plugins?.['neural-composer']
-          if (!plugin?.simpleLLMCall) {
-            throw new Error('Plugin not available for OAuth model calls.')
           }
 
           const responseText = await plugin.simpleLLMCall(promptText)
