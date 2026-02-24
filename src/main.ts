@@ -30,6 +30,68 @@ export const TERM_LLM = 'LLM';
 export const TERM_LLM_EMBED = 'LLM/Embed';
 export const VAR_MAX_ASYNC = 'MAX_ASYNC'; // Nombre de variable de entorno/configuración
 
+/**
+ * Map a plugin provider ID/type to a LightRAG-supported LLM binding name.
+ * LightRAG supports: openai, ollama, gemini, azure_openai, aws_bedrock, lollms
+ * Providers like anthropic, deepseek, groq, mistral, perplexity, morph, openrouter
+ * all expose OpenAI-compatible APIs, so they map to "openai".
+ */
+function toLightRagBinding(providerId: string, providerType: string): string {
+  switch (providerType) {
+    case 'ollama':        return 'ollama';
+    case 'gemini':        return 'gemini';
+    case 'azure-openai':  return 'azure_openai';
+    case 'openai':        return 'openai';
+    // All other providers use OpenAI-compatible chat/completions endpoints
+    case 'anthropic':
+    case 'deepseek':
+    case 'groq':
+    case 'mistral':
+    case 'perplexity':
+    case 'morph':
+    case 'openrouter':
+    case 'lm-studio':
+    case 'openai-compatible':
+    default:              return 'openai';
+  }
+}
+
+/**
+ * Map a plugin provider ID/type to a LightRAG-supported embedding binding name.
+ * LightRAG supports: openai, ollama, gemini, azure_openai, aws_bedrock, jina, lollms
+ */
+function toLightRagEmbeddingBinding(providerId: string, providerType: string): string {
+  switch (providerType) {
+    case 'ollama':        return 'ollama';
+    case 'gemini':        return 'gemini';
+    case 'azure-openai':  return 'azure_openai';
+    case 'openai':        return 'openai';
+    default:              return 'openai';
+  }
+}
+
+/**
+ * Get the correct API base URL for providers that are mapped to the "openai"
+ * binding but aren't actually OpenAI. LightRAG uses LLM_BINDING_HOST for this.
+ */
+function getProviderBaseUrl(provider: { id: string; type: string; baseUrl?: string }): string | null {
+  // If user set a custom baseUrl, use it
+  if (provider.baseUrl) return provider.baseUrl;
+  // Map known providers to their API base URLs
+  switch (provider.type) {
+    case 'anthropic':         return 'https://api.anthropic.com/v1';
+    case 'deepseek':          return 'https://api.deepseek.com/v1';
+    case 'groq':              return 'https://api.groq.com/openai/v1';
+    case 'mistral':           return 'https://api.mistral.ai/v1';
+    case 'perplexity':        return 'https://api.perplexity.ai';
+    case 'openrouter':        return 'https://openrouter.ai/api/v1';
+    case 'morph':             return 'https://api.morphllm.com/v1';
+    case 'lm-studio':         return 'http://localhost:1234/v1';
+    case 'openai':            return null; // default, no override needed
+    default:                  return null;
+  }
+}
+
 // --- MASTER EXTENSION LIST ---
 const SUPPORTED_EXTENSIONS = [
     'md', 'txt', 'docx', 'pdf', 'pptx', 'xlsx', 'rtf', 'odt', 'epub',
@@ -533,16 +595,18 @@ onunload() {
         // LLM
         if (llmModelObj && llmProvider) {
             envContent += `# LLM Configuration\n`;
-            envContent += `LLM_BINDING=${llmProvider.id}\n`;
+            const llmBinding = toLightRagBinding(llmProvider.id, llmProvider.type);
+            envContent += `LLM_BINDING=${llmBinding}\n`;
             envContent += `LLM_MODEL=${llmModelObj.model}\n`;
-            if (llmProvider.id === 'ollama' && llmProvider.baseUrl) envContent += `OLLAMA_HOST=${llmProvider.baseUrl}\n`;
-            else if (llmProvider.id === 'openai' && llmProvider.baseUrl?.includes('localhost')) envContent += `OPENAI_BASE_URL=${llmProvider.baseUrl}\n`;
+            if (llmBinding === 'ollama' && llmProvider.baseUrl) envContent += `OLLAMA_HOST=${llmProvider.baseUrl}\n`;
+            else if (llmBinding === 'openai' && llmProvider.baseUrl) envContent += `LLM_BINDING_HOST=${llmProvider.baseUrl}\n`;
         }
 
         // Embeddings
         if (embedModelObj && embedProvider) {
             envContent += `\n# Embedding Configuration\n`;
-            envContent += `EMBEDDING_BINDING=${embedProvider.id}\n`;
+            const embedBinding = toLightRagEmbeddingBinding(embedProvider.id, embedProvider.type);
+            envContent += `EMBEDDING_BINDING=${embedBinding}\n`;
             envContent += `EMBEDDING_MODEL=${embedModelObj.model}\n`;
             envContent += `EMBEDDING_DIM=${embedModelObj.dimension || 1024}\n`;
             envContent += `MAX_TOKEN_SIZE=8192\n`;
@@ -574,17 +638,40 @@ onunload() {
              envContent += `RERANK_BINDING=null\n`;
         }
 
-        // API Keys (from provider settings — may be overridden by OAuth below)
-        const providersNeeded = new Set([llmProvider, embedProvider]);
+        // API Keys and binding hosts
+        // LightRAG reads LLM_BINDING_API_KEY and EMBEDDING_BINDING_API_KEY
+        // as the universal API key env vars for each binding.
         envContent += `\n# API Keys\n`;
-        providersNeeded.forEach(p => {
-            if (p && p.apiKey) {
-                const keyName = p.id.toUpperCase(); 
-                if (keyName === 'GEMINI') envContent += `GEMINI_API_KEY=${p.apiKey}\n`;
-                if (keyName === 'OPENAI') envContent += `OPENAI_API_KEY=${p.apiKey}\n`;
-                if (keyName === 'ANTHROPIC') envContent += `ANTHROPIC_API_KEY=${p.apiKey}\n`;
+
+        // LLM provider API key + host
+        if (llmProvider && llmProvider.apiKey) {
+            const llmBinding = toLightRagBinding(llmProvider.id, llmProvider.type);
+            envContent += `LLM_BINDING_API_KEY=${llmProvider.apiKey}\n`;
+            // Also set the legacy env var as fallback
+            if (llmBinding === 'gemini') {
+                envContent += `GEMINI_API_KEY=${llmProvider.apiKey}\n`;
+            } else if (llmBinding === 'openai' || llmBinding === 'azure_openai') {
+                envContent += `OPENAI_API_KEY=${llmProvider.apiKey}\n`;
             }
-        });
+            // Set the correct base URL for non-OpenAI providers mapped to openai binding
+            if (llmBinding === 'openai') {
+                const hostUrl = getProviderBaseUrl(llmProvider);
+                if (hostUrl) envContent += `LLM_BINDING_HOST=${hostUrl}\n`;
+            }
+        }
+
+        // Embedding provider API key (may differ from LLM provider)
+        if (embedProvider && embedProvider.apiKey) {
+            envContent += `EMBEDDING_BINDING_API_KEY=${embedProvider.apiKey}\n`;
+            if (embedProvider.id !== llmProvider?.id) {
+                const embedBinding = toLightRagEmbeddingBinding(embedProvider.id, embedProvider.type);
+                if (embedBinding === 'gemini') {
+                    envContent += `GEMINI_API_KEY=${embedProvider.apiKey}\n`;
+                } else if (embedBinding === 'openai') {
+                    envContent += `OPENAI_API_KEY=${embedProvider.apiKey}\n`;
+                }
+            }
+        }
         
         // Entity Types
         if (this.settings.useCustomEntityTypes) {
@@ -608,7 +695,7 @@ onunload() {
         // OAuth Token (auto-managed by Axiom Cortex)
         // When an OAuth provider is the auth source, we write the token as
         // the standard API key env var that LightRAG already knows how to read.
-        // This way no LightRAG code changes are needed — it just sees an API key.
+        // We also override the LLM_BINDING to match the OAuth provider's API.
         if (this.settings.lightRagOAuthProvider) {
             const providerId = this.settings.lightRagOAuthProvider;
             const creds = this.settings.oauthCredentials[providerId];
@@ -616,21 +703,31 @@ onunload() {
                 envContent += `\n# OAuth Token (auto-managed by Axiom Cortex)\n`;
                 envContent += `OAUTH_PROVIDER=${providerId}\n`;
 
-                // Map OAuth token to the API key env var LightRAG expects.
-                // Each OAuth provider maps to a specific LLM API:
+                // Map OAuth token to the API key env var LightRAG expects
+                // AND override the LLM binding to match the OAuth provider's API.
                 if (providerId === 'anthropic') {
-                    // Anthropic OAuth → Anthropic API key
-                    envContent += `ANTHROPIC_API_KEY=${creds.access}\n`;
+                    // Anthropic OAuth → use openai binding (Anthropic has no native LightRAG binding)
+                    envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
+                    envContent += `LLM_BINDING=openai\n`;
+                    envContent += `LLM_BINDING_HOST=https://api.anthropic.com/v1\n`;
                 } else if (providerId === 'openai-codex') {
-                    // OpenAI Codex OAuth → OpenAI API key
+                    envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
                     envContent += `OPENAI_API_KEY=${creds.access}\n`;
+                    envContent += `LLM_BINDING=openai\n`;
                 } else if (providerId === 'google-antigravity' || providerId === 'google-gemini-cli') {
-                    // Google OAuth → Gemini API key (the access token works as bearer token)
+                    // Google OAuth → Gemini binding (the access token works as bearer token)
+                    envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
                     envContent += `GEMINI_API_KEY=${creds.access}\n`;
+                    envContent += `LLM_BINDING=gemini\n`;
+                    // Override LLM model to a Gemini model if current model isn't Gemini-compatible
+                    if (llmModelObj && !llmModelObj.model.startsWith('gemini')) {
+                        envContent += `LLM_MODEL=gemini-2.5-flash\n`;
+                    }
                     if (creds.projectId) envContent += `GOOGLE_CLOUD_PROJECT=${creds.projectId}\n`;
                 } else if (providerId === 'github-copilot') {
-                    // Copilot → OpenAI-compatible API key
+                    envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
                     envContent += `OPENAI_API_KEY=${creds.access}\n`;
+                    envContent += `LLM_BINDING=openai\n`;
                     if (creds.enterpriseUrl) envContent += `COPILOT_ENTERPRISE_URL=${creds.enterpriseUrl}\n`;
                 }
 
