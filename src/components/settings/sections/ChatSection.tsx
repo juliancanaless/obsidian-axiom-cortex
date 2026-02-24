@@ -3,6 +3,7 @@ import {
   RECOMMENDED_MODELS_FOR_CHAT,
 } from '../../../constants'
 import { useSettings } from '../../../contexts/settings-context'
+import { getAccessibleChatModels } from '../../../utils/model-access'
 import { ObsidianDropdown } from '../../common/ObsidianDropdown'
 import { ObsidianSetting } from '../../common/ObsidianSetting'
 import { ObsidianTextArea } from '../../common/ObsidianTextArea'
@@ -12,7 +13,7 @@ import { ObsidianToggle } from '../../common/ObsidianToggle'
 export function ChatSection() {
   const { settings, setSettings } = useSettings()
 
-  const enabledChatModels = settings.chatModels.filter(({ enable }) => enable ?? true)
+  const enabledChatModels = getAccessibleChatModels(settings)
   const oauthModels = settings.oauthModels || []
 
   // Build combined options: OAuth models first (labeled), then API key models

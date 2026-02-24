@@ -3,12 +3,13 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
 
 import { useSettings } from '../../../contexts/settings-context'
+import { getAccessibleChatModels } from '../../../utils/model-access'
 
 export function ModelSelect() {
   const { settings, setSettings } = useSettings()
   const [isOpen, setIsOpen] = useState(false)
 
-  const enabledChatModels = settings.chatModels.filter(({ enable }) => enable ?? true)
+  const enabledChatModels = getAccessibleChatModels(settings)
   const oauthModels = settings.oauthModels || []
   const hasOAuthModels = oauthModels.length > 0
   const hasApiKeyModels = enabledChatModels.length > 0

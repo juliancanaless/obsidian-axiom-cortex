@@ -5,6 +5,7 @@ import { ObsidianToggle } from 'src/components/common/ObsidianToggle'
 import { DEFAULT_CHAT_MODELS } from '../../../../constants'
 import { useSettings } from '../../../../contexts/settings-context'
 import NeuralComposerPlugin from '../../../../main'
+import { getConfiguredProviderIds } from '../../../../utils/model-access'
 import { ConfirmModal } from '../../../modals/ConfirmModal'
 import { AddChatModelModal } from '../../modals/AddChatModelModal'
 
@@ -25,6 +26,7 @@ export function ChatModelsSubSection({
   plugin,
 }: ChatModelsSubSectionProps) {
   const { settings, setSettings } = useSettings()
+  const configuredProviderIds = getConfiguredProviderIds(settings.providers)
 
   // Removed async keyword as opening modal is synchronous
   const handleDeleteChatModel = (modelId: string) => {
@@ -108,10 +110,19 @@ export function ChatModelsSubSection({
             </tr>
           </thead>
           <tbody>
-            {settings.chatModels.map((chatModel) => (
-              <tr key={chatModel.id}>
+            {settings.chatModels.map((chatModel) => {
+              const providerConfigured = configuredProviderIds.has(chatModel.providerId)
+              return (
+              <tr key={chatModel.id} style={!providerConfigured ? { opacity: 0.5 } : undefined}>
                 <td>{chatModel.id}</td>
-                <td>{chatModel.providerId}</td>
+                <td>
+                  {chatModel.providerId}
+                  {!providerConfigured && (
+                    <span title="No API key configured for this provider" style={{ marginLeft: 4, color: 'var(--text-muted)' }}>
+                      ⚠
+                    </span>
+                  )}
+                </td>
                 <td>{chatModel.model}</td>
                 <td>
                   <ObsidianToggle
@@ -152,7 +163,8 @@ export function ChatModelsSubSection({
                   </div>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
           <tfoot>
             <tr>

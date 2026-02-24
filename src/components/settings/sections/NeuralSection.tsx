@@ -2,6 +2,7 @@ import { Setting, Notice } from 'obsidian';
 import { EnvEditorModal } from '../../modals/EnvEditorModal';
 import { useEffect, useRef, useState } from 'react';
 import NeuralComposerPlugin from '../../../main';
+import { getAccessibleChatModels, getAccessibleEmbeddingModels } from '../../../utils/model-access';
 
 export const BACKEND_NAME = "LightRAG";
 export const TERM_API = 'API';
@@ -76,9 +77,22 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
       .setName(`Graph logic model (${TERM_LLM})`)
       .setDesc(`Select the model ${BACKEND_NAME} will use for indexing/reasoning.`)
       .addDropdown((dropdown) => {
-        plugin.settings.chatModels.forEach((model) => {
-          dropdown.addOption(model.id, `${model.providerId} - ${model.model}`);
+        const accessibleChatModels = getAccessibleChatModels(plugin.settings);
+        const oauthModels = plugin.settings.oauthModels || [];
+
+        // OAuth models first
+        if (oauthModels.length > 0) {
+          for (const model of oauthModels) {
+            dropdown.addOption(model.id, `${model.name} (Login)`);
+          }
+        }
+
+        // API key models (only those with configured providers)
+        accessibleChatModels.forEach((model) => {
+          const suffix = oauthModels.length > 0 ? ' (API Key)' : '';
+          dropdown.addOption(model.id, `${model.providerId} - ${model.model}${suffix}`);
         });
+
         dropdown.addOption('', 'Same as chat model (default)');
         dropdown.setValue(plugin.settings.lightRagModelId || '');
         dropdown.onChange((value) => {
@@ -92,13 +106,19 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
     // 3.5 Graph Embedding Model
     new Setting(container)
       .setName('Graph embedding model')
-      .setDesc('Select the model used for vectorizing your notes, (must match the dimensions used during ingestion).')
+      .setDesc('Select the model used for vectorizing your notes, (must match the dimensions used during ingestion). Embedding models require an API key — OAuth login does not provide embedding access.')
       .addDropdown((dropdown) => {
-        plugin.settings.embeddingModels.forEach((model) => {
-          dropdown.addOption(model.id, `${model.providerId} - ${model.model} (${model.dimension || '?'} dim)`);
-        });
+        const accessibleEmbeddingModels = getAccessibleEmbeddingModels(plugin.settings);
+
+        if (accessibleEmbeddingModels.length === 0) {
+          dropdown.addOption('', 'No embedding models available — configure an API key');
+        } else {
+          accessibleEmbeddingModels.forEach((model) => {
+            dropdown.addOption(model.id, `${model.providerId} - ${model.model} (${model.dimension || '?'} dim)`);
+          });
+          dropdown.addOption('', 'Same as chat model (default)');
+        }
         
-        dropdown.addOption('', 'Same as chat model (default)');
         dropdown.setValue(plugin.settings.lightRagEmbeddingModelId || '');
 
         dropdown.onChange((value) => {
