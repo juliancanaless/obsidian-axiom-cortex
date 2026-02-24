@@ -782,10 +782,16 @@ onunload() {
                     envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
                     envContent += `LLM_BINDING=openai\n`;
                     envContent += `LLM_BINDING_HOST=https://api.anthropic.com/v1\n`;
+                    if (!llmModelObj) {
+                        envContent += `LLM_MODEL=claude-sonnet-4-20250514\n`;
+                    }
                 } else if (providerId === 'openai-codex') {
                     envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
                     envContent += `OPENAI_API_KEY=${creds.access}\n`;
                     envContent += `LLM_BINDING=openai\n`;
+                    if (!llmModelObj) {
+                        envContent += `LLM_MODEL=gpt-4o-mini\n`;
+                    }
                 } else if (providerId === 'google-antigravity' || providerId === 'google-gemini-cli') {
                     // Google OAuth → Gemini binding
                     // IMPORTANT: The Gemini Python SDK does NOT accept OAuth tokens (ya29.xxx)
@@ -806,7 +812,9 @@ onunload() {
                     }
 
                     // Override LLM model to a Gemini model if current model isn't Gemini-compatible
-                    if (llmModelObj && !llmModelObj.model.startsWith('gemini')) {
+                    // Also handles when llmModelObj is undefined (e.g. an OAuth model is selected
+                    // as chatModelId, which isn't in the chatModels array)
+                    if (!llmModelObj || !llmModelObj.model.startsWith('gemini')) {
                         envContent += `LLM_MODEL=gemini-2.5-flash\n`;
                     }
                     if (creds.projectId) envContent += `GOOGLE_CLOUD_PROJECT=${creds.projectId}\n`;
@@ -828,6 +836,9 @@ onunload() {
                     envContent += `OPENAI_API_KEY=${creds.access}\n`;
                     envContent += `LLM_BINDING=openai\n`;
                     if (creds.enterpriseUrl) envContent += `COPILOT_ENTERPRISE_URL=${creds.enterpriseUrl}\n`;
+                    if (!llmModelObj) {
+                        envContent += `LLM_MODEL=gpt-4o-mini\n`;
+                    }
                 }
 
                 // Also write generic vars for future oauth_binding.py integration
