@@ -318,7 +318,7 @@ ${message.annotations
 ${similaritySearchResults
   .map(({ path, content, metadata }) => {
     // --- CORA MOD: Inyección Directa de Contexto de Grafo ---
-    if (path.includes("Graph's Memory") || path.includes("❤️ Respuesta de Cora")) {
+    if (path.includes("Graph's memory") || path.includes("Graph's Memory") || path.includes("❤️ Respuesta de Cora")) {
         return `\n>>> CONTEXTO DEL GRAFO:\n${content}\n>>> FIN CONTEXTO\n\n`;
     }
     // --------------------------------------------------------
