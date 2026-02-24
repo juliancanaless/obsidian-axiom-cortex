@@ -175,7 +175,7 @@ interface CloudCodeAssistResponse {
     candidates?: Array<{
       content?: {
         role?: string
-        parts?: Array<{ text?: string; thought?: boolean }>
+        parts?: Array<{ text?: string; thought?: boolean; thoughtSignature?: string }>
       }
       finishReason?: string
     }>
@@ -183,10 +183,19 @@ interface CloudCodeAssistResponse {
   }
 }
 
-function extractCCAText(data: CloudCodeAssistResponse): string {
-  const parts = data.response?.candidates?.[0]?.content?.parts
-  if (!parts) return ''
-  return parts.filter(p => !p.thought && p.text).map(p => p.text!).join('')
+function extractCCAText(data: CloudCodeAssistResponse | CloudCodeAssistResponse[]): string {
+  // CCA gateway returns an array of response chunks (streaming envelope).
+  // Concatenate text from all chunks, filtering out thought/signature parts.
+  const items = Array.isArray(data) ? data : [data]
+  const allText: string[] = []
+  for (const item of items) {
+    const parts = item.response?.candidates?.[0]?.content?.parts
+    if (!parts) continue
+    for (const p of parts) {
+      if (!p.thought && !p.thoughtSignature && p.text) allText.push(p.text)
+    }
+  }
+  return allText.join('')
 }
 
 // ============================================================================
@@ -273,7 +282,7 @@ async function callCloudCodeAssist(
       })
 
       if (response.ok) {
-        const data = (await response.json()) as CloudCodeAssistResponse
+        const data = (await response.json()) as CloudCodeAssistResponse | CloudCodeAssistResponse[]
         const text = extractCCAText(data)
         if (text) return text
         if (attempt < MAX_RETRIES) {
