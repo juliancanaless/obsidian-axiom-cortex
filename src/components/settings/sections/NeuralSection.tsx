@@ -31,6 +31,21 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
 
     container.createEl('h3', { text: `Neural backend (${BACKEND_NAME})` });
 
+    // --- SETUP GUIDE ---
+    const guideEl = container.createDiv({ cls: 'nrlcmp-setting-callout' });
+    guideEl.createEl('strong', { text: '📋 Setup guide' });
+    const guideList = guideEl.createEl('ul');
+    guideList.createEl('li', { text: 'Set the server path and data directory below, then enable auto-start.' });
+    guideList.createEl('li', { text: 'If you\'re logged in via OAuth (e.g., Google), the graph will automatically use your login for both LLM and embeddings — no API key needed.' });
+    guideList.createEl('li', { text: 'If you prefer an API key, set one in Providers above. You can mix: e.g., OAuth for chat + API key for the graph.' });
+
+    const warningP = guideEl.createEl('p');
+    warningP.createEl('strong', { text: '⚠ Embedding lock-in: ' });
+    warningP.createSpan({ text: 'Once you ingest documents, the embedding model is locked. Switching to a different embedding model (or even a different provider\'s embeddings) requires deleting your graph data folder and re-ingesting everything. Pick one and stick with it.' });
+
+    // Style the callout
+    guideEl.style.cssText = 'background: var(--background-secondary); border-left: 3px solid var(--interactive-accent); padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; font-size: 0.9em; line-height: 1.5;';
+
     // 1. Auto-start
     new Setting(container)
       .setName(`Auto-start ${BACKEND_NAME} server`)
@@ -106,7 +121,7 @@ export const NeuralSection = ({ plugin }: { plugin: NeuralComposerPlugin }) => {
     // 3.5 Graph Embedding Model
     new Setting(container)
       .setName('Graph embedding model')
-      .setDesc('Select the model used for vectorizing your notes, (must match the dimensions used during ingestion). Embedding models require an API key — OAuth login does not provide embedding access.')
+      .setDesc('The embedding model used for vectorizing your notes. This choice is permanent for a given graph — changing it later requires deleting your graph data and re-ingesting. If using OAuth login, embeddings are handled automatically.')
       .addDropdown((dropdown) => {
         const accessibleEmbeddingModels = getAccessibleEmbeddingModels(plugin.settings);
 

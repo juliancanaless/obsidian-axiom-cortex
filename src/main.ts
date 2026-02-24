@@ -385,6 +385,9 @@ export default class NeuralComposerPlugin extends Plugin {
 
     // --- AGGRESSIVE AUTO-START ---
 this.app.workspace.onLayoutReady(() => {
+        // --- STARTUP VALIDATION ---
+        this.validateLightRagConfig();
+
         if (this.settings.enableAutoStartServer) {
             void this.startLightRagServer();
         }
@@ -547,6 +550,49 @@ onunload() {
     this.stopLightRagServer();
   }
 
+  /**
+   * Validate LightRAG configuration on startup and show actionable notices
+   * for common misconfigurations that would cause silent failures.
+   */
+  private validateLightRagConfig(): void {
+    if (!this.settings.enableAutoStartServer) return; // don't nag if server is off
+
+    const issues: string[] = [];
+
+    // Check paths
+    if (!this.settings.lightRagCommand) {
+      issues.push('• Server path is not set');
+    }
+    if (!this.settings.lightRagWorkDir) {
+      issues.push('• Graph data directory is not set');
+    }
+
+    // Check LLM access
+    const targetLlmId = this.settings.lightRagModelId || this.settings.chatModelId;
+    const llmModel = this.settings.chatModels.find(m => m.id === targetLlmId);
+    const llmProvider = this.settings.providers.find(p => p.id === llmModel?.providerId);
+    const hasOAuth = !!this.settings.lightRagOAuthProvider &&
+      !!this.settings.oauthCredentials[this.settings.lightRagOAuthProvider]?.access;
+
+    if (!hasOAuth && llmProvider && !llmProvider.apiKey) {
+      issues.push(`• No API key for "${llmProvider.id}" (used by graph LLM) and no OAuth login configured`);
+    }
+
+    // Check embedding access
+    const embedId = this.settings.lightRagEmbeddingModelId || this.settings.embeddingModelId;
+    const embedModel = this.settings.embeddingModels.find(m => m.id === embedId);
+    const embedProvider = this.settings.providers.find(p => p.id === embedModel?.providerId);
+
+    if (!hasOAuth && embedProvider && !embedProvider.apiKey) {
+      issues.push(`• No API key for "${embedProvider.id}" (used by graph embeddings) — embeddings will fail on ingestion`);
+    }
+
+    if (issues.length > 0) {
+      const msg = `Neural backend config issues:\n${issues.join('\n')}\n\nOpen Settings → Neural backend to fix.`;
+      // Delay slightly so it doesn't get lost in startup noise
+      setTimeout(() => new Notice(msg, 15000), 3000);
+    }
+  }
   public stopLightRagServer() {
     if (this.serverProcess) {
         this.serverProcess.kill();
