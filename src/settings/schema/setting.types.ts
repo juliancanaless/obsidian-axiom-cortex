@@ -120,6 +120,16 @@ export const NeuralComposerSettingsSchema = z.object({
 
   // Proactive discovery: debounced editor listener for semantic link suggestions
   enableProactiveDiscovery: z.boolean().catch(false),
+
+  // OAuth-discovered models (populated dynamically when user logs in via OAuth)
+  // These are separate from chatModels — they're shown in a distinct "Login Models"
+  // section and routed through the Cloud Code Assist gateway instead of standard APIs.
+  oauthModels: z.array(z.object({
+    id: z.string(),              // unique ID: "oauth-antigravity/claude-opus-4-6-thinking"
+    model: z.string(),           // model name for the gateway: "claude-opus-4-6-thinking"
+    name: z.string(),            // display name: "Claude Opus 4.6 Thinking"
+    oauthProviderId: z.string(), // "google-antigravity"
+  })).catch([]),
 })
 
 
@@ -196,6 +206,7 @@ export const DEFAULT_SETTINGS: NeuralComposerSettings = {
   oauthCredentials: {},
   lightRagOAuthProvider: '',
   enableProactiveDiscovery: false,
+  oauthModels: [],
 }
 
 

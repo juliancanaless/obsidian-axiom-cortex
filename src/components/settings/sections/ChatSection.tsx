@@ -12,6 +12,52 @@ import { ObsidianToggle } from '../../common/ObsidianToggle'
 export function ChatSection() {
   const { settings, setSettings } = useSettings()
 
+  const enabledChatModels = settings.chatModels.filter(({ enable }) => enable ?? true)
+  const oauthModels = settings.oauthModels || []
+
+  // Build combined options: OAuth models first (labeled), then API key models
+  const buildModelOptions = () => {
+    const options: Record<string, string> = {}
+
+    // OAuth models first
+    for (const model of oauthModels) {
+      options[model.id] = `${model.name} (Login)`
+    }
+
+    // API key models
+    for (const chatModel of enabledChatModels) {
+      const suffix = RECOMMENDED_MODELS_FOR_CHAT.includes(chatModel.id)
+        ? ' (Recommended)'
+        : oauthModels.length > 0
+          ? ' (API Key)'
+          : ''
+      options[chatModel.id] = `${chatModel.id}${suffix}`
+    }
+
+    return options
+  }
+
+  const buildApplyModelOptions = () => {
+    const options: Record<string, string> = {}
+
+    // OAuth models first
+    for (const model of oauthModels) {
+      options[model.id] = `${model.name} (Login)`
+    }
+
+    // API key models
+    for (const chatModel of enabledChatModels) {
+      const suffix = RECOMMENDED_MODELS_FOR_APPLY.includes(chatModel.id)
+        ? ' (Recommended)'
+        : oauthModels.length > 0
+          ? ' (API Key)'
+          : ''
+      options[chatModel.id] = `${chatModel.id}${suffix}`
+    }
+
+    return options
+  }
+
   return (
     <div className="nrlcmp-settings-section">
       <div className="nrlcmp-settings-header">Chat</div>
@@ -22,14 +68,7 @@ export function ChatSection() {
       >
         <ObsidianDropdown
           value={settings.chatModelId}
-          options={Object.fromEntries(
-            settings.chatModels
-              .filter(({ enable }) => enable ?? true)
-              .map((chatModel) => [
-                chatModel.id,
-                `${chatModel.id}${RECOMMENDED_MODELS_FOR_CHAT.includes(chatModel.id) ? ' (Recommended)' : ''}`,
-              ]),
-          )}
+          options={buildModelOptions()}
           onChange={(value) => {
             void setSettings({
               ...settings,
@@ -45,14 +84,7 @@ export function ChatSection() {
       >
         <ObsidianDropdown
           value={settings.applyModelId}
-          options={Object.fromEntries(
-            settings.chatModels
-              .filter(({ enable }) => enable ?? true)
-              .map((chatModel) => [
-                chatModel.id,
-                `${chatModel.id}${RECOMMENDED_MODELS_FOR_APPLY.includes(chatModel.id) ? ' (Recommended)' : ''}`,
-              ]),
-          )}
+          options={buildApplyModelOptions()}
           onChange={(value) => {
             void setSettings({
               ...settings,

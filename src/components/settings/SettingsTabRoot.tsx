@@ -38,27 +38,28 @@ export function SettingsTabRoot({ app, plugin }: SettingsTabRootProps) {
         />
       </ObsidianSetting>
 
-      {/* 2. INFRAESTRUCTURA (Providers & Models) */}
-      {/* El usuario debe configurar esto primero para tener API Keys */}
+      {/* 2. AUTHENTICATION — Two clear sections */}
+      {/* API Keys: manual provider configuration */}
       <ProvidersSection app={app} plugin={plugin} />
+
+      {/* Login (OAuth): sign in with existing subscriptions */}
       <OAuthSection app={app} plugin={plugin} />
+
+      {/* 3. MODELS — Shows models from both API Keys and Login */}
       <ModelsSection app={app} plugin={plugin} />
 
-      {/* 3. CEREBRO (LightRAG) */}
-      {/* Aquí vive toda nuestra lógica nueva: Server, Ontology, Rerank */}
+      {/* 4. CEREBRO (LightRAG) */}
       <NeuralSection plugin={plugin} />
 
-      {/* 4. COMPORTAMIENTO (Chat) */}
+      {/* 5. COMPORTAMIENTO (Chat) — Model pickers show both groups */}
       <ChatSection />
       
-      {/* 5. HERRAMIENTAS AVANZADAS */}
+      {/* 6. HERRAMIENTAS AVANZADAS */}
       <TemplateSection app={app} />
       <McpSection app={app} plugin={plugin} />
       
-      {/* 6. ZONA DE PELIGRO / EXTRA */}
+      {/* 7. ZONA DE PELIGRO / EXTRA */}
       <EtcSection app={app} plugin={plugin} />
-
-      {/* OCULTO: RAGSection (El sistema antiguo vector-local) */}
     </>
   )
 }

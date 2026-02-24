@@ -34,6 +34,15 @@ import {
   type OAuthProviderInterface,
 } from './oauth'
 import { OAuthLoginModal } from '../components/modals/OAuthLoginModal'
+import { discoverModels, type CCACredentials } from '../core/llm/cloud-code-assist'
+
+// Providers that support Cloud Code Assist gateway (need JSON-parsed credentials)
+const CCA_PROVIDERS = new Set(['google-antigravity', 'google-gemini-cli'])
+// All providers that support OAuth model discovery
+const OAUTH_LLM_PROVIDERS = new Set([
+  'google-antigravity', 'google-gemini-cli',
+  'github-copilot', 'openai-codex', 'anthropic',
+])
 
 export interface OAuthProviderStatus {
   id: string;
@@ -164,14 +173,21 @@ export class OAuthManager {
     const credentials = await provider.login(callbacks);
     await this.saveCredentials(providerId, credentials);
 
+    // Discover and register models from the gateway after login
+    await this.discoverAndRegisterModels(providerId);
+
     return credentials;
   }
 
   /**
-   * Logout from a specific provider — clear credentials.
+   * Logout from a specific provider — clear credentials and remove discovered models.
    */
   async logout(providerId: OAuthProviderId): Promise<void> {
     await this.clearCredentials(providerId);
+
+    // Remove discovered models for this provider
+    await this.clearOAuthModels(providerId);
+
     new Notice(`Logged out from ${getOAuthProvider(providerId)?.name ?? providerId}`);
   }
 
@@ -304,5 +320,109 @@ export class OAuthManager {
    */
   getProvider(providerId: OAuthProviderId): OAuthProviderInterface | undefined {
     return getOAuthProvider(providerId);
+  }
+
+  // ========================================================================
+  // Model Discovery (Cloud Code Assist gateway)
+  // ========================================================================
+
+  /**
+   * Discover models available through an OAuth provider and
+   * register them in settings.oauthModels[].
+   *
+   * Called:
+   * - After successful login
+   * - On plugin load if credentials exist
+   * - After token refresh (models may change with tier changes)
+   *
+   * Supports all OAuth providers:
+   * - Antigravity / Gemini CLI: validates via Cloud Code Assist gateway
+   * - Copilot / Codex / Anthropic: returns model list directly (validated on first call)
+   */
+  async discoverAndRegisterModels(providerId: string): Promise<void> {
+    if (!OAUTH_LLM_PROVIDERS.has(providerId)) {
+      return;
+    }
+
+    try {
+      const apiKey = await this.getApiKey(providerId);
+      if (!apiKey) return;
+
+      // For CCA providers, parse JSON credentials. For others, pass the raw token.
+      let credentials: CCACredentials | string;
+      if (CCA_PROVIDERS.has(providerId)) {
+        try {
+          credentials = JSON.parse(apiKey) as CCACredentials;
+        } catch {
+          console.warn(`[OAuthManager] Could not parse credentials for ${providerId}`);
+          return;
+        }
+        if (!(credentials as CCACredentials).token || !(credentials as CCACredentials).projectId) return;
+      } else {
+        credentials = apiKey;
+      }
+
+      const models = await discoverModels(credentials, providerId);
+
+      // Replace models for this provider (keep models from other providers)
+      const existingOtherModels = (this.plugin.settings.oauthModels || [])
+        .filter(m => m.oauthProviderId !== providerId);
+
+      this.plugin.settings.oauthModels = [...existingOtherModels, ...models];
+      await this.plugin.saveData(this.plugin.settings);
+
+      if (models.length > 0) {
+        console.log(`[OAuthManager] Discovered ${models.length} models for ${providerId}`);
+      }
+    } catch (error) {
+      console.error(`[OAuthManager] Model discovery failed for ${providerId}:`, error);
+      // Non-fatal — user can still use API key models
+    }
+  }
+
+  /**
+   * Remove all discovered models for a specific OAuth provider.
+   * Called on logout. If the active chatModelId references a removed model,
+   * resets to the first available API-key model.
+   */
+  private async clearOAuthModels(providerId: string): Promise<void> {
+    const currentModels = this.plugin.settings.oauthModels || [];
+    const remainingModels = currentModels.filter(m => m.oauthProviderId !== providerId);
+    const removedIds = new Set(
+      currentModels.filter(m => m.oauthProviderId === providerId).map(m => m.id),
+    );
+
+    this.plugin.settings.oauthModels = remainingModels;
+
+    // If current chatModelId was an oauth model that got removed, reset it
+    if (removedIds.has(this.plugin.settings.chatModelId)) {
+      const firstApiKeyModel = this.plugin.settings.chatModels[0];
+      if (firstApiKeyModel) {
+        this.plugin.settings.chatModelId = firstApiKeyModel.id;
+      }
+    }
+
+    // Same for applyModelId
+    if (removedIds.has(this.plugin.settings.applyModelId)) {
+      const firstApiKeyModel = this.plugin.settings.chatModels[0];
+      if (firstApiKeyModel) {
+        this.plugin.settings.applyModelId = firstApiKeyModel.id;
+      }
+    }
+
+    await this.plugin.saveData(this.plugin.settings);
+  }
+
+  /**
+   * Discover models for all logged-in OAuth providers.
+   * Called once on plugin load.
+   */
+  async discoverAllModels(): Promise<void> {
+    const creds = this.getCredentials();
+    for (const providerId of Object.keys(creds)) {
+      if (creds[providerId]?.access) {
+        await this.discoverAndRegisterModels(providerId);
+      }
+    }
   }
 }

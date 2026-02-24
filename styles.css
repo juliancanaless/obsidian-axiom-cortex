@@ -467,6 +467,43 @@
   background-color: var(--background-modifier-hover);
   cursor: pointer;
 }
+
+.nrlcmp-popover-group-label {
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: var(--size-2-3) var(--size-4-2);
+  margin: var(--size-2-1) 8px 0 8px;
+  cursor: default !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+  user-select: none;
+}
+
+.nrlcmp-popover-group-label:hover {
+  background-color: transparent !important;
+}
+
+.nrlcmp-popover-separator {
+  height: 1px;
+  background-color: var(--background-modifier-border);
+  margin: var(--size-2-2) var(--size-4-2);
+  padding: 0 !important;
+  min-height: 1px !important;
+  cursor: default !important;
+  border: none !important;
+}
+
+.nrlcmp-popover-separator:hover {
+  background-color: var(--background-modifier-border) !important;
+}
+
+.nrlcmp-popover li.is-selected {
+  background-color: var(--background-modifier-hover);
+  font-weight: 500;
+}
+
 .nrlcmp-popover li .nrlcmp-chat-list-dropdown-item-icon {
   visibility: hidden;
 }

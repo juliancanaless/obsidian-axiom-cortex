@@ -293,6 +293,14 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
       }
       const activeFileContent = await readTFileContent(activeFile, app.vault)
 
+      // OAuth models don't support the apply feature (requires streaming provider client)
+      const isApplyOAuth = (settings.oauthModels || []).some(m => m.id === settings.applyModelId)
+      if (isApplyOAuth) {
+        throw new Error(
+          'Apply feature is not yet supported with Login models. Please select an API Key model for the Apply model in Settings → Chat.',
+        )
+      }
+
       const { providerClient, model } = getChatModelClient({
         settings,
         modelId: settings.applyModelId,

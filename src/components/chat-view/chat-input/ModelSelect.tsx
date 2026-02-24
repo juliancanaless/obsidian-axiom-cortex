@@ -7,11 +7,23 @@ import { useSettings } from '../../../contexts/settings-context'
 export function ModelSelect() {
   const { settings, setSettings } = useSettings()
   const [isOpen, setIsOpen] = useState(false)
+
+  const enabledChatModels = settings.chatModels.filter(({ enable }) => enable ?? true)
+  const oauthModels = settings.oauthModels || []
+  const hasOAuthModels = oauthModels.length > 0
+  const hasApiKeyModels = enabledChatModels.length > 0
+
+  // Determine display name for the current model
+  const currentOAuthModel = oauthModels.find(m => m.id === settings.chatModelId)
+  const displayName = currentOAuthModel
+    ? currentOAuthModel.name
+    : settings.chatModelId
+
   return (
     <DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenu.Trigger className="nrlcmp-chat-input-model-select">
         <div className="nrlcmp-chat-input-model-select__model-name">
-          {settings.chatModelId}
+          {displayName}
         </div>
         <div className="nrlcmp-chat-input-model-select__icon">
           {isOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -21,23 +33,64 @@ export function ModelSelect() {
       <DropdownMenu.Portal>
         <DropdownMenu.Content className="nrlcmp-popover">
           <ul>
-            {settings.chatModels
-              .filter(({ enable }) => enable ?? true)
-              .map((chatModelOption) => (
-                <DropdownMenu.Item
-                  key={chatModelOption.id}
-                  onSelect={() => {
-                    // FIX: Handle floating promise from setSettings
-                    void setSettings({
-                      ...settings,
-                      chatModelId: chatModelOption.id,
-                    })
-                  }}
-                  asChild
-                >
-                  <li>{chatModelOption.id}</li>
-                </DropdownMenu.Item>
-              ))}
+            {/* Login Models (OAuth) */}
+            {hasOAuthModels && (
+              <>
+                <DropdownMenu.Label asChild>
+                  <li className="nrlcmp-popover-group-label">Login Models</li>
+                </DropdownMenu.Label>
+                {oauthModels.map((model) => (
+                  <DropdownMenu.Item
+                    key={model.id}
+                    onSelect={() => {
+                      void setSettings({
+                        ...settings,
+                        chatModelId: model.id,
+                      })
+                    }}
+                    asChild
+                  >
+                    <li className={settings.chatModelId === model.id ? 'is-selected' : ''}>
+                      {model.name}
+                    </li>
+                  </DropdownMenu.Item>
+                ))}
+              </>
+            )}
+
+            {/* Separator between groups */}
+            {hasOAuthModels && hasApiKeyModels && (
+              <DropdownMenu.Separator asChild>
+                <li className="nrlcmp-popover-separator" />
+              </DropdownMenu.Separator>
+            )}
+
+            {/* API Key Models */}
+            {hasApiKeyModels && (
+              <>
+                {hasOAuthModels && (
+                  <DropdownMenu.Label asChild>
+                    <li className="nrlcmp-popover-group-label">API Key Models</li>
+                  </DropdownMenu.Label>
+                )}
+                {enabledChatModels.map((chatModelOption) => (
+                  <DropdownMenu.Item
+                    key={chatModelOption.id}
+                    onSelect={() => {
+                      void setSettings({
+                        ...settings,
+                        chatModelId: chatModelOption.id,
+                      })
+                    }}
+                    asChild
+                  >
+                    <li className={settings.chatModelId === chatModelOption.id ? 'is-selected' : ''}>
+                      {chatModelOption.id}
+                    </li>
+                  </DropdownMenu.Item>
+                ))}
+              </>
+            )}
           </ul>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

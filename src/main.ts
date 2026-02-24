@@ -21,6 +21,7 @@ import { NeuralComposerSettingTab } from './settings/SettingTab';
 import { getMentionableBlockData } from './utils/obsidian';
 import { VectorManager } from './database/modules/vector/VectorManager';
 import { OAuthManager } from './auth/OAuthManager';
+import { oauthLLMCall, CloudCodeAssistError, type OAuthLLMProviderId } from './core/llm/cloud-code-assist';
 
 export const PLUGIN_NAME = "Neural Composer";
 export const BACKEND_NAME = "LightRAG";
@@ -244,6 +245,10 @@ export default class NeuralComposerPlugin extends Plugin {
       name: 'Logout from OAuth provider',
       callback: () => { this.oauthManager.showLoginSelector('logout'); },
     });
+
+    // Discover models for any providers already logged in
+    // (non-blocking — runs in background after plugin loads)
+    void this.oauthManager.discoverAllModels();
 
     // --- SYNTHESIS COMMANDS ---
     this.addCommand({
@@ -1442,6 +1447,15 @@ INSTRUCTIONS:
   // Simple Helper for LLM Call
   async simpleLLMCall(prompt: string): Promise<string> {
       const chatModelId = this.settings.chatModelId;
+
+      // ─── Cloud Code Assist path (OAuth models) ───
+      // OAuth models have IDs starting with "oauth-" and are stored in oauthModels[]
+      const oauthModel = (this.settings.oauthModels || []).find(m => m.id === chatModelId);
+      if (oauthModel) {
+          return this.simpleLLMCallCloudCodeAssist(prompt, oauthModel);
+      }
+
+      // ─── Existing API-key paths ───
       const modelObj = this.settings.chatModels.find(m => m.id === chatModelId);
       const provider = this.settings.providers.find(p => p.id === modelObj?.providerId);
       
@@ -1481,6 +1495,62 @@ INSTRUCTIONS:
       
       const data = response.json;
       return data.choices?.[0]?.message?.content || "";
+  }
+
+  /**
+   * Execute an LLM call through an OAuth provider's API.
+   * Used by simpleLLMCall() when the selected model is an OAuth-discovered model.
+   *
+   * Routes to the correct provider API:
+   * - Antigravity/Gemini CLI → Cloud Code Assist gateway
+   * - GitHub Copilot → OpenAI-compatible chat/completions
+   * - OpenAI Codex → OpenAI chat/completions
+   * - Anthropic → Anthropic Messages API
+   *
+   * Handles 401 auto-retry with token refresh (same pattern as ragEngine.ts).
+   */
+  private async simpleLLMCallCloudCodeAssist(
+      prompt: string,
+      oauthModel: { model: string; oauthProviderId: string },
+  ): Promise<string> {
+      const { oauthProviderId, model: modelId } = oauthModel;
+
+      // Get fresh credentials from OAuthManager
+      const apiKey = await this.oauthManager?.getApiKey(oauthProviderId);
+      if (!apiKey) {
+          throw new Error(
+              `Not logged in to ${oauthProviderId}. Go to Settings → Login (OAuth) to authenticate.`
+          );
+      }
+
+      try {
+          return await oauthLLMCall(
+              prompt,
+              modelId,
+              apiKey,
+              oauthProviderId as OAuthLLMProviderId,
+          );
+      } catch (error) {
+          // Auto-retry on 401 with token refresh (mirrors ragEngine.ts pattern)
+          if (error instanceof CloudCodeAssistError && error.status === 401 && this.oauthManager) {
+              console.log('[simpleLLMCall] Got 401, attempting token refresh...');
+              const refreshed = await this.oauthManager.forceRefreshActiveToken();
+              if (refreshed) {
+                  try {
+                      return await oauthLLMCall(
+                          prompt,
+                          modelId,
+                          refreshed.apiKey,
+                          oauthProviderId as OAuthLLMProviderId,
+                      );
+                  } catch (retryError) {
+                      throw retryError;
+                  }
+              }
+              throw new Error('OAuth token expired and refresh failed. Please login again in Settings → Login (OAuth).');
+          }
+          throw error;
+      }
   }
 
   // --- STATUS BAR LOGIC ---

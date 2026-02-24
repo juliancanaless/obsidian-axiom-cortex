@@ -50,7 +50,16 @@ export function useChatStreamManager({
     activeStreamAbortControllersRef.current = []
   }, [])
 
+  const isOAuthModel = useMemo(() => {
+    return (settings.oauthModels || []).some(m => m.id === settings.chatModelId)
+  }, [settings.chatModelId, settings.oauthModels])
+
   const { providerClient, model } = useMemo(() => {
+    // OAuth models don't have a provider client — they use Cloud Code Assist
+    // Return null sentinel values; the mutation handles this case
+    if (isOAuthModel) {
+      return { providerClient: null as any, model: null as any }
+    }
     try {
       return getChatModelClient({
         settings,
@@ -83,7 +92,7 @@ export function useChatStreamManager({
       }
       throw error
     }
-  }, [settings, setSettings])
+  }, [settings, setSettings, isOAuthModel])
 
   const submitChatMutation = useMutation({
     mutationFn: async ({
@@ -106,6 +115,69 @@ export function useChatStreamManager({
       let unsubscribeResponseGenerator: (() => void) | undefined
 
       try {
+        // OAuth models: use non-streaming Cloud Code Assist path
+        // (Obsidian's requestUrl doesn't support ReadableStream for SSE)
+        if (isOAuthModel) {
+          const oauthModel = (settings.oauthModels || []).find(m => m.id === settings.chatModelId)
+          if (!oauthModel) {
+            throw new Error('Selected OAuth model not found. Please select a different model.')
+          }
+
+          // Build prompt from the last user message
+          const userMessages = chatMessages.filter(m => m.role === 'user')
+          const lastUserMsg = userMessages.at(-1)
+          let promptText = ''
+          if (lastUserMsg && lastUserMsg.role === 'user') {
+            if (typeof lastUserMsg.promptContent === 'string') {
+              promptText = lastUserMsg.promptContent
+            } else if (Array.isArray(lastUserMsg.promptContent)) {
+              promptText = lastUserMsg.promptContent
+                .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+                .map(p => p.text)
+                .join('\n')
+            }
+          }
+
+          if (!promptText) {
+            throw new Error('No message content to send.')
+          }
+
+          // Get the plugin instance to access simpleLLMCall
+          // We access it through the app's plugin registry
+          const plugin = (app as any).plugins?.plugins?.['obsidian-neural-composer'] ||
+                         (app as any).plugins?.plugins?.['neural-composer']
+          if (!plugin?.simpleLLMCall) {
+            throw new Error('Plugin not available for OAuth model calls.')
+          }
+
+          const responseText = await plugin.simpleLLMCall(promptText)
+
+          const assistantMessage: ChatMessage = {
+            role: 'assistant',
+            content: responseText,
+            id: crypto.randomUUID(),
+            metadata: {
+              model: undefined,
+            },
+          }
+
+          setChatMessages((prevChatMessages) => {
+            const lastMessageIndex = prevChatMessages.findIndex(
+              (message) => message.id === lastMessage.id,
+            )
+            if (lastMessageIndex === -1) {
+              return prevChatMessages
+            }
+            return [
+              ...prevChatMessages.slice(0, lastMessageIndex + 1),
+              assistantMessage,
+            ]
+          })
+          autoScrollToBottom()
+          return
+        }
+
+        // Standard API-key path: streaming via ResponseGenerator
         const mcpManager = await getMcpManager()
         const responseGenerator = new ResponseGenerator({
           providerClient,

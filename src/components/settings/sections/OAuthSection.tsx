@@ -17,9 +17,9 @@ export function OAuthSection({ app, plugin }: OAuthSectionProps) {
     const container = settingsRef.current
     container.empty()
 
-    container.createEl('h3', { text: 'OAuth Authentication' })
+    container.createEl('h3', { text: 'Login (OAuth)' })
     container.createEl('p', {
-      text: 'Login with your existing AI subscriptions to get API tokens automatically. This is an alternative to manual API keys.',
+      text: 'Sign in with your existing AI subscriptions. No API keys needed — models are unlocked automatically.',
       cls: 'setting-item-description',
     })
 
@@ -34,7 +34,7 @@ export function OAuthSection({ app, plugin }: OAuthSectionProps) {
 
     const providers = plugin.oauthManager.listProviders()
 
-    // Provider status table
+    // Provider status
     for (const provider of providers) {
       const setting = new Setting(container)
         .setName(provider.name)
@@ -64,10 +64,38 @@ export function OAuthSection({ app, plugin }: OAuthSectionProps) {
       }
     }
 
+    // Show discovered models for logged-in providers
+    const oauthModels = plugin.settings.oauthModels || []
+    if (oauthModels.length > 0) {
+      const modelsContainer = container.createDiv({ cls: 'setting-item' })
+      modelsContainer.createEl('div', {
+        text: 'Models from Login:',
+        cls: 'setting-item-name',
+      })
+      const modelsList = modelsContainer.createEl('div', {
+        cls: 'setting-item-description',
+      })
+      // Group models by provider
+      const byProvider = new Map<string, typeof oauthModels>()
+      for (const model of oauthModels) {
+        const existing = byProvider.get(model.oauthProviderId) || []
+        existing.push(model)
+        byProvider.set(model.oauthProviderId, existing)
+      }
+      for (const [, models] of byProvider) {
+        const list = modelsList.createEl('ul', {
+          attr: { style: 'margin: 4px 0; padding-left: 20px; opacity: 0.8;' },
+        })
+        for (const model of models) {
+          list.createEl('li', { text: model.name })
+        }
+      }
+    }
+
     // Login button
     new Setting(container)
       .setName('Login to a provider')
-      .setDesc('Authenticate with an OAuth provider to get API tokens automatically.')
+      .setDesc('Authenticate with an OAuth provider to unlock models automatically.')
       .addButton((btn) =>
         btn
           .setButtonText('Login')
