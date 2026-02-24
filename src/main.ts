@@ -779,8 +779,12 @@ onunload() {
                 } else if (providerId === 'google-antigravity' || providerId === 'google-gemini-cli') {
                     // Google OAuth → Gemini binding (the access token works as bearer token)
                     envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
-                    envContent += `GEMINI_API_KEY=${creds.access}\n`;
                     envContent += `LLM_BINDING=gemini\n`;
+                    // Only write GEMINI_API_KEY if embedding isn't using its own Gemini key
+                    // (avoids overwriting a real API key with an OAuth token)
+                    if (!embedProvider?.apiKey || embedProvider.type !== 'gemini') {
+                        envContent += `GEMINI_API_KEY=${creds.access}\n`;
+                    }
                     // Override LLM model to a Gemini model if current model isn't Gemini-compatible
                     if (llmModelObj && !llmModelObj.model.startsWith('gemini')) {
                         envContent += `LLM_MODEL=gemini-2.5-flash\n`;

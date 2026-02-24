@@ -1,7 +1,7 @@
 {
   "id": "axiom-cortex",
   "name": "Axiom Cortex",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "minAppVersion": "1.0.0",
   "description": "OAuth-powered Graph RAG for Obsidian. Knowledge synthesis with LightRAG, Antigravity bridge, clickable citations, and proactive link discovery.",
   "author": "Julian Canales",
