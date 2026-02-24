@@ -3,7 +3,11 @@
  * Ported from pi-mono/packages/ai/src/utils/oauth/google-antigravity.ts
  *
  * Uses Node.js http.createServer for the OAuth callback.
- * Works in Obsidian's Electron/Node context via lazy import.
+ * Works in Obsidian's Electron/Node context via require().
+ *
+ * NOTE: We use require('http') instead of import('node:http') because
+ * esbuild externalizes node: builtins and the dynamic import shim fails
+ * in Electron's renderer. require() works directly via Node integration.
  */
 
 import type { Server } from 'node:http'
@@ -14,13 +18,9 @@ type AntigravityCredentials = OAuthCredentials & {
 	projectId: string;
 };
 
-let _createServer: typeof import('node:http').createServer | null = null;
-let _httpImportPromise: Promise<void> | null = null;
-if (typeof process !== 'undefined' && (process.versions?.node || process.versions?.bun)) {
-	_httpImportPromise = import('node:http').then((m) => {
-		_createServer = m.createServer;
-	});
-}
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeHttp = typeof require !== 'undefined' ? require('http') as typeof import('node:http') : null;
+const _createServer = nodeHttp?.createServer ?? null;
 
 // Antigravity OAuth credentials
 const decode = (s: string) => atob(s);
@@ -52,11 +52,7 @@ type CallbackServerInfo = {
 
 async function getNodeCreateServer(): Promise<typeof import('node:http').createServer> {
 	if (_createServer) return _createServer;
-	if (_httpImportPromise) {
-		await _httpImportPromise;
-	}
-	if (_createServer) return _createServer;
-	throw new Error("Antigravity OAuth is only available in Node.js environments");
+	throw new Error("Antigravity OAuth requires Node.js (Obsidian desktop). node:http is not available.");
 }
 
 async function startCallbackServer(): Promise<CallbackServerInfo> {

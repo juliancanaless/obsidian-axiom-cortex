@@ -5,6 +5,7 @@
  * Adaptations:
  * - Removed process.env.GOOGLE_CLOUD_PROJECT lookups (Obsidian settings, not env vars)
  * - Simplified discoverProject() to skip env var fallbacks
+ * - Uses require('http') instead of import('node:http') for Electron compatibility
  */
 
 import type { Server } from 'node:http'
@@ -15,13 +16,9 @@ type GeminiCredentials = OAuthCredentials & {
 	projectId: string;
 };
 
-let _createServer: typeof import('node:http').createServer | null = null;
-let _httpImportPromise: Promise<void> | null = null;
-if (typeof process !== 'undefined' && (process.versions?.node || process.versions?.bun)) {
-	_httpImportPromise = import('node:http').then((m) => {
-		_createServer = m.createServer;
-	});
-}
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeHttp = typeof require !== 'undefined' ? require('http') as typeof import('node:http') : null;
+const _createServer = nodeHttp?.createServer ?? null;
 
 const decode = (s: string) => atob(s);
 const CLIENT_ID = decode(
@@ -46,11 +43,7 @@ type CallbackServerInfo = {
 
 async function getNodeCreateServer(): Promise<typeof import('node:http').createServer> {
 	if (_createServer) return _createServer;
-	if (_httpImportPromise) {
-		await _httpImportPromise;
-	}
-	if (_createServer) return _createServer;
-	throw new Error("Gemini CLI OAuth is only available in Node.js environments");
+	throw new Error("Gemini CLI OAuth requires Node.js (Obsidian desktop). node:http is not available.");
 }
 
 async function startCallbackServer(): Promise<CallbackServerInfo> {

@@ -3,20 +3,14 @@
  * Ported from pi-mono/packages/ai/src/utils/oauth/openai-codex.ts
  *
  * Uses Node.js crypto and http for the OAuth callback.
- * Works in Obsidian's Electron/Node context via lazy import.
+ * Uses require() for Electron compatibility (esbuild externalizes node: builtins).
  */
 
-// NEVER convert to top-level imports - breaks browser/Vite builds
-let _randomBytes: typeof import('node:crypto').randomBytes | null = null;
-let _http: typeof import('node:http') | null = null;
-if (typeof process !== 'undefined' && (process.versions?.node || process.versions?.bun)) {
-	import('node:crypto').then((m) => {
-		_randomBytes = m.randomBytes;
-	});
-	import('node:http').then((m) => {
-		_http = m;
-	});
-}
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const _nodeCrypto = typeof require !== 'undefined' ? require('crypto') as typeof import('node:crypto') : null;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const _http = typeof require !== 'undefined' ? require('http') as typeof import('node:http') : null;
+const _randomBytes = _nodeCrypto?.randomBytes ?? null;
 
 import { generatePKCE } from './pkce'
 import type { OAuthCredentials, OAuthLoginCallbacks, OAuthPrompt, OAuthProviderInterface } from './types'
