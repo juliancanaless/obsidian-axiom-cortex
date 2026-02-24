@@ -71,9 +71,20 @@ function toLightRagEmbeddingBinding(providerId: string, providerType: string): s
 }
 
 /**
- * Get the correct API base URL for providers that are mapped to the "openai"
- * binding but aren't actually OpenAI. LightRAG uses LLM_BINDING_HOST for this.
+ * Get the correct API base URL for the embedding provider.
+ * Always return a value to prevent LightRAG from inheriting LLM_BINDING_HOST.
  */
+function getEmbeddingProviderHost(provider: { id: string; type: string; baseUrl?: string }): string | null {
+  if (provider.baseUrl) return provider.baseUrl;
+  switch (provider.type) {
+    case 'openai':            return 'https://api.openai.com/v1';
+    case 'gemini':            return 'https://generativelanguage.googleapis.com';
+    case 'ollama':            return 'http://localhost:11434';
+    case 'lm-studio':         return 'http://localhost:1234/v1';
+    case 'azure-openai':      return null; // uses AZURE_OPENAI_ENDPOINT
+    default:                  return 'https://api.openai.com/v1';
+  }
+}
 function getProviderBaseUrl(provider: { id: string; type: string; baseUrl?: string }): string | null {
   // If user set a custom baseUrl, use it
   if (provider.baseUrl) return provider.baseUrl;
@@ -610,6 +621,11 @@ onunload() {
             envContent += `EMBEDDING_MODEL=${embedModelObj.model}\n`;
             envContent += `EMBEDDING_DIM=${embedModelObj.dimension || 1024}\n`;
             envContent += `MAX_TOKEN_SIZE=8192\n`;
+            // Explicitly set EMBEDDING_BINDING_HOST to avoid it inheriting
+            // LLM_BINDING_HOST (LightRAG's get_default_host uses LLM_BINDING_HOST
+            // as env fallback for ALL bindings, which breaks cross-provider setups)
+            const embedHost = getEmbeddingProviderHost(embedProvider);
+            if (embedHost) envContent += `EMBEDDING_BINDING_HOST=${embedHost}\n`;
         }
 
         // RERANKING
@@ -724,6 +740,15 @@ onunload() {
                         envContent += `LLM_MODEL=gemini-2.5-flash\n`;
                     }
                     if (creds.projectId) envContent += `GOOGLE_CLOUD_PROJECT=${creds.projectId}\n`;
+                    // If the embedding provider has no API key, use the Gemini OAuth
+                    // token for embeddings too (Gemini supports embeddings)
+                    if (!embedProvider?.apiKey) {
+                        envContent += `EMBEDDING_BINDING=gemini\n`;
+                        envContent += `EMBEDDING_MODEL=gemini-embedding-001\n`;
+                        envContent += `EMBEDDING_DIM=768\n`;
+                        envContent += `EMBEDDING_BINDING_API_KEY=${creds.access}\n`;
+                        envContent += `EMBEDDING_BINDING_HOST=https://generativelanguage.googleapis.com\n`;
+                    }
                 } else if (providerId === 'github-copilot') {
                     envContent += `LLM_BINDING_API_KEY=${creds.access}\n`;
                     envContent += `OPENAI_API_KEY=${creds.access}\n`;
