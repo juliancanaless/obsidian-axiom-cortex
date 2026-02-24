@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-neural-composer",
-  "version": "1.1.6",
-  "description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+  "name": "axiom-cortex",
+  "version": "2.0.0",
+  "description": "OAuth-powered Graph RAG for Obsidian with knowledge synthesis and Antigravity bridge.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -14,7 +14,7 @@
     "migrate:compile": "node compile-migration.js"
   },
   "keywords": [],
-  "author": "Oscar Campo",
+  "author": "Julian Canales",
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^9.39.2",
