@@ -667,6 +667,16 @@ onunload() {
             envContent += `LLM_MODEL=${llmModelObj.model}\n`;
             if (llmBinding === 'ollama' && llmProvider.baseUrl) envContent += `OLLAMA_HOST=${llmProvider.baseUrl}\n`;
             else if (llmBinding === 'openai' && llmProvider.baseUrl) envContent += `LLM_BINDING_HOST=${llmProvider.baseUrl}\n`;
+        } else {
+            // Fallback: chatModelId is an OAuth model (not in chatModels[]),
+            // or no LLM model is configured. Write a sensible default using
+            // any available Gemini API key so LightRAG doesn't fall back to Ollama.
+            const geminiProv = this.settings.providers.find(p => p.type === 'gemini' && p.apiKey);
+            if (geminiProv) {
+                envContent += `# LLM Configuration (auto-detected from Gemini provider)\n`;
+                envContent += `LLM_BINDING=gemini\n`;
+                envContent += `LLM_MODEL=gemini-2.5-flash\n`;
+            }
         }
 
         // Embeddings
@@ -729,6 +739,14 @@ onunload() {
             if (llmBinding === 'openai') {
                 const hostUrl = getProviderBaseUrl(llmProvider);
                 if (hostUrl) envContent += `LLM_BINDING_HOST=${hostUrl}\n`;
+            }
+        } else {
+            // Fallback: no LLM provider found (OAuth model selected as chatModelId).
+            // Look for any Gemini API key to use for LightRAG's LLM calls.
+            const geminiProv = this.settings.providers.find(p => p.type === 'gemini' && p.apiKey);
+            if (geminiProv) {
+                envContent += `LLM_BINDING_API_KEY=${geminiProv.apiKey}\n`;
+                envContent += `GEMINI_API_KEY=${geminiProv.apiKey}\n`;
             }
         }
 
