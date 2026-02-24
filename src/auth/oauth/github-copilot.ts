@@ -8,6 +8,7 @@
  */
 
 import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from './types'
+import { obsidianFetch } from './obsidian-fetch'
 
 type CopilotCredentials = OAuthCredentials & {
 	enterpriseUrl?: string;
@@ -86,8 +87,8 @@ export function getGitHubCopilotBaseUrl(token?: string, enterpriseDomain?: strin
 	return "https://api.individual.githubcopilot.com";
 }
 
-async function fetchJson(url: string, init: RequestInit): Promise<unknown> {
-	const response = await fetch(url, init);
+async function fetchJson(url: string, init: { method?: string; headers?: Record<string, string>; body?: string }): Promise<unknown> {
+	const response = await obsidianFetch(url, init);
 	if (!response.ok) {
 		const text = await response.text();
 		throw new Error(`${response.status} ${response.statusText}: ${text}`);

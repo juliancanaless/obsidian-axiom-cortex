@@ -13,6 +13,7 @@ const _http = typeof require !== 'undefined' ? require('http') as typeof import(
 const _randomBytes = _nodeCrypto?.randomBytes ?? null;
 
 import { generatePKCE } from './pkce'
+import { obsidianFetch } from './obsidian-fetch'
 import type { OAuthCredentials, OAuthLoginCallbacks, OAuthPrompt, OAuthProviderInterface } from './types'
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
@@ -96,7 +97,7 @@ async function exchangeAuthorizationCode(
 	verifier: string,
 	redirectUri: string = REDIRECT_URI,
 ): Promise<TokenResult> {
-	const response = await fetch(TOKEN_URL, {
+	const response = await obsidianFetch(TOKEN_URL, {
 		method: "POST",
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: new URLSearchParams({
@@ -135,7 +136,7 @@ async function exchangeAuthorizationCode(
 
 async function refreshAccessToken(refreshToken: string): Promise<TokenResult> {
 	try {
-		const response = await fetch(TOKEN_URL, {
+		const response = await obsidianFetch(TOKEN_URL, {
 			method: "POST",
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 			body: new URLSearchParams({

@@ -12,6 +12,7 @@
 
 import type { Server } from 'node:http'
 import { generatePKCE } from './pkce'
+import { obsidianFetch } from './obsidian-fetch'
 import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from './types'
 
 type AntigravityCredentials = OAuthCredentials & {
@@ -164,7 +165,7 @@ async function discoverProject(accessToken: string, onProgress?: (message: strin
 
 	for (const endpoint of endpoints) {
 		try {
-			const loadResponse = await fetch(`${endpoint}/v1internal:loadCodeAssist`, {
+			const loadResponse = await obsidianFetch(`${endpoint}/v1internal:loadCodeAssist`, {
 				method: "POST",
 				headers,
 				body: JSON.stringify({
@@ -204,7 +205,7 @@ async function discoverProject(accessToken: string, onProgress?: (message: strin
  */
 async function getUserEmail(accessToken: string): Promise<string | undefined> {
 	try {
-		const response = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
+		const response = await obsidianFetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
 			headers: {
 				Authorization: `Bearer ${accessToken}`,
 			},
@@ -224,7 +225,7 @@ async function getUserEmail(accessToken: string): Promise<string | undefined> {
  * Refresh Antigravity token
  */
 export async function refreshAntigravityToken(refreshToken: string, projectId: string): Promise<OAuthCredentials> {
-	const response = await fetch(TOKEN_URL, {
+	const response = await obsidianFetch(TOKEN_URL, {
 		method: "POST",
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: new URLSearchParams({
@@ -351,7 +352,7 @@ export async function loginAntigravity(
 		}
 
 		onProgress?.("Exchanging authorization code for tokens...");
-		const tokenResponse = await fetch(TOKEN_URL, {
+		const tokenResponse = await obsidianFetch(TOKEN_URL, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/x-www-form-urlencoded",

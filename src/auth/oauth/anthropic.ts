@@ -4,6 +4,7 @@
  */
 
 import { generatePKCE } from './pkce'
+import { obsidianFetch } from './obsidian-fetch'
 import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from './types'
 
 const decode = (s: string) => atob(s);
@@ -42,7 +43,7 @@ export async function loginAnthropic(
 	const code = splits[0];
 	const state = splits[1];
 
-	const tokenResponse = await fetch(TOKEN_URL, {
+	const tokenResponse = await obsidianFetch(TOKEN_URL, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({
@@ -79,7 +80,7 @@ export async function loginAnthropic(
  * Refresh Anthropic OAuth token
  */
 export async function refreshAnthropicToken(refreshToken: string): Promise<OAuthCredentials> {
-	const response = await fetch(TOKEN_URL, {
+	const response = await obsidianFetch(TOKEN_URL, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({

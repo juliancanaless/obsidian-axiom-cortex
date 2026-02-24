@@ -10,6 +10,7 @@
 
 import type { Server } from 'node:http'
 import { generatePKCE } from './pkce'
+import { obsidianFetch } from './obsidian-fetch'
 import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from './types'
 
 type GeminiCredentials = OAuthCredentials & {
@@ -177,7 +178,7 @@ async function pollOperation(
 			await wait(5000);
 		}
 
-		const response = await fetch(`${CODE_ASSIST_ENDPOINT}/v1internal/${operationName}`, {
+		const response = await obsidianFetch(`${CODE_ASSIST_ENDPOINT}/v1internal/${operationName}`, {
 			method: "GET",
 			headers,
 		});
@@ -207,7 +208,7 @@ async function discoverProject(accessToken: string, onProgress?: (message: strin
 	};
 
 	onProgress?.("Checking for existing Cloud Code Assist project...");
-	const loadResponse = await fetch(`${CODE_ASSIST_ENDPOINT}/v1internal:loadCodeAssist`, {
+	const loadResponse = await obsidianFetch(`${CODE_ASSIST_ENDPOINT}/v1internal:loadCodeAssist`, {
 		method: "POST",
 		headers,
 		body: JSON.stringify({
@@ -224,7 +225,7 @@ async function discoverProject(accessToken: string, onProgress?: (message: strin
 	if (!loadResponse.ok) {
 		let errorPayload: unknown;
 		try {
-			errorPayload = await loadResponse.clone().json();
+			errorPayload = await loadResponse.json();
 		} catch {
 			errorPayload = undefined;
 		}
@@ -275,7 +276,7 @@ async function discoverProject(accessToken: string, onProgress?: (message: strin
 		},
 	};
 
-	const onboardResponse = await fetch(`${CODE_ASSIST_ENDPOINT}/v1internal:onboardUser`, {
+	const onboardResponse = await obsidianFetch(`${CODE_ASSIST_ENDPOINT}/v1internal:onboardUser`, {
 		method: "POST",
 		headers,
 		body: JSON.stringify(onboardBody),
@@ -308,7 +309,7 @@ async function discoverProject(accessToken: string, onProgress?: (message: strin
  */
 async function getUserEmail(accessToken: string): Promise<string | undefined> {
 	try {
-		const response = await fetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
+		const response = await obsidianFetch("https://www.googleapis.com/oauth2/v1/userinfo?alt=json", {
 			headers: {
 				Authorization: `Bearer ${accessToken}`,
 			},
@@ -328,7 +329,7 @@ async function getUserEmail(accessToken: string): Promise<string | undefined> {
  * Refresh Google Cloud Code Assist token
  */
 export async function refreshGoogleCloudToken(refreshToken: string, projectId: string): Promise<OAuthCredentials> {
-	const response = await fetch(TOKEN_URL, {
+	const response = await obsidianFetch(TOKEN_URL, {
 		method: "POST",
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: new URLSearchParams({
@@ -455,7 +456,7 @@ export async function loginGeminiCli(
 		}
 
 		onProgress?.("Exchanging authorization code for tokens...");
-		const tokenResponse = await fetch(TOKEN_URL, {
+		const tokenResponse = await obsidianFetch(TOKEN_URL, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/x-www-form-urlencoded",
