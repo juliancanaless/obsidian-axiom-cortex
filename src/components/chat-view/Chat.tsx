@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { SerializedEditorState, SerializedLexicalNode } from 'lexical'
 import { Book, CircleStop, History, Plus } from 'lucide-react'
 import { App, Notice } from 'obsidian'
 import {
@@ -57,6 +58,44 @@ import { useAutoScroll } from './useAutoScroll'
 import { useChatStreamManager } from './useChatStreamManager'
 import UserMessageItem from './UserMessageItem'
 
+/**
+ * Create a Lexical SerializedEditorState from a plain text string.
+ * Used to pre-fill the chat input with a query.
+ */
+const plainTextToSerializedEditorState = (
+  text: string,
+): SerializedEditorState => ({
+  root: {
+    children: [
+      {
+        children: [
+          {
+            detail: 0,
+            format: 0,
+            mode: 'normal',
+            style: '',
+            text,
+            type: 'text',
+            version: 1,
+          } as SerializedLexicalNode,
+        ],
+        direction: 'ltr' as const,
+        format: '' as const,
+        indent: 0,
+        type: 'paragraph',
+        version: 1,
+        textFormat: 0,
+        textStyle: '',
+      } as SerializedLexicalNode,
+    ],
+    direction: 'ltr' as const,
+    format: '' as const,
+    indent: 0,
+    type: 'root',
+    version: 1,
+  },
+})
+
 const getNewInputMessage = (app: App): ChatUserMessage => {
   return {
     role: 'user',
@@ -74,7 +113,7 @@ const getNewInputMessage = (app: App): ChatUserMessage => {
 
 export type ChatRef = {
   openNewChat: (selectedBlock?: MentionableBlockData) => void
-  addSelectionToChat: (selectedBlock: MentionableBlockData) => void
+  addSelectionToChat: (selectedBlock: MentionableBlockData, queryText?: string) => void
   focusMessage: () => void
 }
 
@@ -524,7 +563,7 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
   useImperativeHandle(ref, () => ({
     openNewChat: (selectedBlock?: MentionableBlockData) =>
       handleNewChat(selectedBlock),
-    addSelectionToChat: (selectedBlock: MentionableBlockData) => {
+    addSelectionToChat: (selectedBlock: MentionableBlockData, queryText?: string) => {
       const mentionable: Omit<MentionableBlock, 'id'> = {
         type: 'block',
         ...selectedBlock,
@@ -532,23 +571,43 @@ const Chat = forwardRef<ChatRef, ChatProps>((props, ref) => {
 
       setAddedBlockKey(getMentionableKey(serializeMentionable(mentionable)))
 
+      const prefilledContent = queryText
+        ? plainTextToSerializedEditorState(queryText)
+        : undefined
+
       if (focusedMessageId === inputMessage.id) {
         setInputMessage((prevInputMessage) => {
           const mentionableKey = getMentionableKey(
             serializeMentionable(mentionable),
           )
-          // Check if mentionable already exists
-          if (
-            prevInputMessage.mentionables.some(
-              (m) =>
-                getMentionableKey(serializeMentionable(m)) === mentionableKey,
-            )
-          ) {
+          const alreadyExists = prevInputMessage.mentionables.some(
+            (m) =>
+              getMentionableKey(serializeMentionable(m)) === mentionableKey,
+          )
+          const newMentionables = alreadyExists
+            ? prevInputMessage.mentionables
+            : [...prevInputMessage.mentionables, mentionable]
+
+          // When pre-filling text, we must regenerate the id so the
+          // ChatUserInput component re-mounts with the new initial content
+          // (it uses key={inputMessage.id}).
+          if (prefilledContent && !prevInputMessage.content) {
+            const newId = uuidv4()
+            setFocusedMessageId(newId)
+            return {
+              ...prevInputMessage,
+              id: newId,
+              mentionables: newMentionables,
+              content: prefilledContent,
+            }
+          }
+
+          if (alreadyExists) {
             return prevInputMessage
           }
           return {
             ...prevInputMessage,
-            mentionables: [...prevInputMessage.mentionables, mentionable],
+            mentionables: newMentionables,
           }
         })
       } else {

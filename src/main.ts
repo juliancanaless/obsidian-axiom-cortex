@@ -1072,7 +1072,7 @@ async activateChatView(chatProps?: ChatProps, openNewChat = false) {
     }
   }
 
-  async addSelectionToChat(editor: Editor, view: MarkdownView) {
+  async addSelectionToChat(editor: Editor, view: MarkdownView, queryText?: string) {
     const data = getMentionableBlockData(editor, view);
     if (!data) return;
     
@@ -1087,7 +1087,7 @@ async activateChatView(chatProps?: ChatProps, openNewChat = false) {
     
     if (leaf.view instanceof ChatView) {
         const chatView = leaf.view;
-        chatView.addSelectionToChat(data);
+        chatView.addSelectionToChat(data, queryText);
         chatView.focusMessage();
     }
   }
@@ -1228,11 +1228,11 @@ INSTRUCTIONS:
       return;
     }
 
-    // Route through existing selection → chat flow with vault search
-    await this.addSelectionToChat(editor, view);
+    // Route through existing selection → chat flow with a pre-filled graph query
+    const queryText = 'What other notes in my vault connect to or expand on this idea?';
+    await this.addSelectionToChat(editor, view, queryText);
 
-    // The chat view will handle the vault search automatically
-    new Notice('Finding connecting evidence in your graph...');
+    new Notice('Finding connecting evidence — review the query and hit Send.');
   }
 
   /**
